@@ -277,3 +277,96 @@ def test_get_user_events_with_since(client, user):
     events_naive = res_naive.json()
     assert len(events_naive) == 1
     assert events_naive[0]["id"] == e2["id"]
+
+
+def test_get_user_events_monkey_float_user_id(client):
+    # Try passing a float as user_id
+    response = client.get("/users/1.5/events")
+    # FastAPI path parameter validation should fail and return 422
+    assert response.status_code == 422
+
+
+def test_get_user_events_monkey_negative_user_id(client):
+    # Try passing a negative integer as user_id.
+    # Note: Although the storage has no negative user IDs, the endpoint accepts it as a valid int
+    # and returns 404 since it's not found.
+    response = client.get("/users/-5/events")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User not found"
+
+
+def test_get_user_events_monkey_extremely_large_user_id(client):
+    # Try passing an extremely large user_id that might cause overflow in standard types
+    response = client.get("/users/999999999999999999999999999999999999999999999999999999999999/events")
+    # It should fail with 404 since it doesn't exist, but it must not crash the server (500)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User not found"
+
+
+def test_get_user_events_monkey_invalid_date_format(client, user):
+    # Test different kinds of malformed since date strings
+    malformed_dates = [
+        "invalid-date",
+        "2026-05-32T12:00:00Z",  # Invalid day
+        "2026-02-29T12:00:00Z",  # Non-leap year invalid day
+        "2026-05-29T25:00:00Z",  # Invalid hour
+        "2026-05-29T12:60:00Z",  # Invalid minute
+    ]
+    for date_str in malformed_dates:
+        response = client.get(f"/users/{user['id']}/events?since={date_str}")
+        assert response.status_code == 422, f"Failed for since={date_str}"
+
+
+def test_get_user_events_monkey_sql_injection(client, user):
+    # Test SQL injection in user_id path parameter
+    res1 = client.get("/users/1%20OR%201=1/events")
+    assert res1.status_code == 422
+
+    res2 = client.get("/users/'%20OR%20'1'='1/events")
+    assert res2.status_code == 422
+
+    res3 = client.get("/users/--;/events")
+    assert res3.status_code == 422
+
+    # Test SQL injection in since query parameter
+    res4 = client.get(f"/users/{user['id']}/events?since=2026-05-29'%20OR%20'1'='1")
+    assert res4.status_code == 422
+
+
+def test_get_user_events_monkey_empty_parameters(client, user):
+    # Test empty user_id parameter (this will match a different route or return 404/405/422)
+    # E.g. GET /users//events -> double slash
+    response_empty_user = client.get("/users//events")
+    # FastAPI will route this as path '/users//events'.
+    # Since GET /users/{user_id}/events requires user_id (which cannot be empty under standard routing),
+    # it typically returns 404 Not Found (or 307 redirect).
+    assert response_empty_user.status_code in (404, 307)
+
+    # Test empty since parameter (GET /users/{user_id}/events?since=)
+    response_empty_since = client.get(f"/users/{user['id']}/events?since=")
+    # When since is empty, depending on FastAPI/Pydantic version, it might be parsed as None,
+    # or fail validation. Let's see what it returns.
+    # We will assert that it returns either 200 (treating it as missing/None) or 422 (failing validation).
+    # It should definitely NOT return 500.
+    assert response_empty_since.status_code in (200, 422)
+
+
+def test_get_user_events_monkey_special_characters_user_id(client):
+    # Special characters in user_id
+    response_emoji = client.get("/users/👻/events")
+    assert response_emoji.status_code == 422
+
+    response_special = client.get("/users/!@#$/events")
+    assert response_special.status_code == 422
+
+
+def test_get_user_events_monkey_since_extreme_dates(client, user):
+    # Far future date -> should return empty list
+    res_future = client.get(f"/users/{user['id']}/events?since=9999-12-31T23:59:59Z")
+    assert res_future.status_code == 200
+    assert res_future.json() == []
+
+    # Far past date -> should return all active events
+    res_past = client.get(f"/users/{user['id']}/events?since=0001-01-01T00:00:00Z")
+    assert res_past.status_code == 200
+
