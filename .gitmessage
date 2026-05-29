@@ -1,0 +1,21 @@
+# <type>(<scope>): <scurtă descriere la imperativ (max 50 de caractere)>
+# ----------------------------------------------------------------------
+# Alege unul dintre tipurile (type) de mai jos:
+#   feat:     O funcționalitate nouă (ex. adăugare endpoint)
+#   fix:      O rezolvare a unui bug
+#   docs:     Modificări în documentație / Markdown
+#   refactor: Modificare de cod care nu adaugă feature și nu rezolvă bug
+#   test:     Adăugare de teste sau modificări ale testelor existente
+#   style:    Formatare, spații, denumiri, punct și virgulă (fără logică)
+#   chore:    Actualizări de dependințe, configurări build, gitignore
+#
+# Exemplu: feat(api): add endpoint to fetch user events
+# ----------------------------------------------------------------------
+
+# Corpul commit-ului: Explică "de ce" și "ce" s-a schimbat, nu doar "cum".
+# Scrie rânduri de maxim 72 de caractere. Începe după linia goală:
+
+
+# Subsol (opțional): Menționează tickete sau breaking changes.
+# Ex: Closes #123
+# Ex: BREAKING CHANGE: <descriere>
