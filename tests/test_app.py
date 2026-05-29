@@ -172,3 +172,108 @@ def test_pagination_after_delete_stays_consistent(client, user):
     assert len(page1_ids) == 3
     assert len(page2_ids) == 2
     assert set(page1_ids).isdisjoint(page2_ids), "Pages should not overlap"
+
+
+def test_get_user_events_no_since(client, user):
+    # Create another user to verify we only get events for the target user
+    other_user_res = client.post(
+        "/users", json={"email": "other@example.com", "name": "Other"}
+    )
+    assert other_user_res.status_code == 201
+    other_user_id = other_user_res.json()["id"]
+
+    # Post events for target user
+    e1 = client.post(
+        "/events",
+        json={"user_id": user["id"], "event_type": "login", "metadata": {}},
+    ).json()
+    e2 = client.post(
+        "/events",
+        json={"user_id": user["id"], "event_type": "click", "metadata": {}},
+    ).json()
+
+    # Post event for other user
+    client.post(
+        "/events",
+        json={"user_id": other_user_id, "event_type": "click", "metadata": {}},
+    )
+
+    # Call endpoint without since
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 2
+    assert events[0]["id"] == e1["id"]
+    assert events[1]["id"] == e2["id"]
+
+
+def test_get_user_events_user_missing(client):
+    response = client.get("/users/9999/events")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User not found"
+
+
+def test_get_user_events_excludes_soft_deleted(client, user):
+    e1 = client.post(
+        "/events",
+        json={"user_id": user["id"], "event_type": "login", "metadata": {}},
+    ).json()
+    e2 = client.post(
+        "/events",
+        json={"user_id": user["id"], "event_type": "click", "metadata": {}},
+    ).json()
+
+    # Soft delete the first event
+    delete_res = client.delete(f"/events/{e1['id']}")
+    assert delete_res.status_code == 204
+
+    # Call endpoint
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 1
+    assert events[0]["id"] == e2["id"]
+
+
+def test_get_user_events_with_since(client, user):
+    from datetime import datetime, timezone
+
+    # Post 2 events
+    e1 = client.post(
+        "/events",
+        json={"user_id": user["id"], "event_type": "login", "metadata": {}},
+    ).json()
+    e2 = client.post(
+        "/events",
+        json={"user_id": user["id"], "event_type": "click", "metadata": {}},
+    ).json()
+
+    # Modify created_at manually in storage to guarantee deterministic values
+    t1 = datetime(2026, 5, 29, 12, 0, 0, tzinfo=timezone.utc)
+    t2 = datetime(2026, 5, 29, 13, 0, 0, tzinfo=timezone.utc)
+    storage.get_event(e1["id"]).created_at = t1
+    storage.get_event(e2["id"]).created_at = t2
+
+    # Case 1: since is timezone-aware UTC in between t1 and t2
+    # Expect only event 2
+    res_aware = client.get(f"/users/{user['id']}/events?since=2026-05-29T12:30:00Z")
+    assert res_aware.status_code == 200
+    events_aware = res_aware.json()
+    assert len(events_aware) == 1
+    assert events_aware[0]["id"] == e2["id"]
+
+    # Case 2: since is timezone-aware +03:00 (equivalent to 12:30:00 UTC is 15:30:00+03:00)
+    # Expect only event 2
+    res_tz = client.get(f"/users/{user['id']}/events?since=2026-05-29T15:30:00%2B03:00")
+    assert res_tz.status_code == 200
+    events_tz = res_tz.json()
+    assert len(events_tz) == 1
+    assert events_tz[0]["id"] == e2["id"]
+
+    # Case 3: since is naive datetime (defaults to UTC)
+    # Expect only event 2
+    res_naive = client.get(f"/users/{user['id']}/events?since=2026-05-29T12:30:00")
+    assert res_naive.status_code == 200
+    events_naive = res_naive.json()
+    assert len(events_naive) == 1
+    assert events_naive[0]["id"] == e2["id"]

@@ -13,12 +13,14 @@ class Storage:
     def __init__(self) -> None:
         self._users: dict[int, User] = {}
         self._events: dict[int, Event] = {}
+        self._user_events: dict[int, list[Event]] = {}
         self._next_user_id = 1
         self._next_event_id = 1
 
     def reset(self) -> None:
         self._users.clear()
         self._events.clear()
+        self._user_events.clear()
         self._next_user_id = 1
         self._next_event_id = 1
 
@@ -39,6 +41,7 @@ class Storage:
             metadata=data.metadata,
         )
         self._events[event.id] = event
+        self._user_events.setdefault(event.user_id, []).append(event)
         self._next_event_id += 1
         return event
 
@@ -56,6 +59,15 @@ class Storage:
             return None
         event.deleted_at = datetime.now(timezone.utc)
         return event
+
+    def get_user_events(
+        self, user_id: int, since: Optional[datetime] = None
+    ) -> list[Event]:
+        user_events = self._user_events.get(user_id, [])
+        active_events = [e for e in user_events if e.deleted_at is None]
+        if since is not None:
+            active_events = [e for e in active_events if e.created_at > since]
+        return active_events
 
 
 storage = Storage()

@@ -1,0 +1,71 @@
+# NOTES — Vlad Sărăndan
+
+---
+
+## 1. Bug-urile găsite
+
+Pentru fiecare bug, scrie 2-3 propoziții:
+
+### Bug #1
+- **Unde era:** `app/main.py` la linia ~32
+- **Cum l-am găsit:** Rulând testele automate cu `pytest -v`, am observat că testul `test_create_event_returns_201` eșua deoarece primea statusul 200 în loc de 201.
+- **Cum l-am fixat:** Am adăugat `status_code=201` în decoratorul FastAPI al rutei de crearea a evenimentelor (`@app.post("/events", response_model=Event, status_code=201)`).
+
+### Bug #2
+- **Unde era:** `app/storage.py` la linia ~51
+- **Cum l-am găsit:** Rulând testele automate cu `pytest -v`, testele de paginare (`test_list_events_includes_created_items` și `test_list_events_paginates_without_overlap`) au eșuat returnând 4 elemente în loc de 5 din cauza omiterii primului element din listă.
+- **Cum l-am fixat:** Am modificat slice-ul din return de la indexarea decalată `all_events[offset + 1 : offset + 1 + limit]` la slice-ul corect `all_events[offset : offset + limit]`.
+
+### Bug #3
+- **Unde era:** `app/storage.py` la liniile ~50-60
+- **Cum l-am găsit:** Rulând testele automate cu `pytest -v`, au eșuat testele `test_list_events_hides_soft_deleted_items` (evenimentele șterse logic apăreau în listă) și `test_delete_same_event_twice_changes_response` (al doilea apel returna 204 în loc de 404).
+- **Cum l-am fixat:** Am filtrat elementele în `list_events` pentru a exclude evenimentele care au `deleted_at is not None` și am returnat `None` în `soft_delete_event` dacă evenimentul era deja șters logic pentru a returna corect 404 la a doua apelare.
+
+---
+
+## 2. Endpoint-ul nou
+
+- **Decizii de design:**
+  1. *Separarea Responsabilităților (SOLID - SRP)*: Am izolat logica de procesare a inputurilor și normalizarea fusului orar la nivel de controller (`app/main.py`), astfel încât clasa `Storage` din `app/storage.py` să primească doar obiecte `datetime` gata normalizate în UTC.
+  2. *Optimizarea interogărilor (Performanță)*: Am implementat un index secundar in-memory `self._user_events: dict[int, list[Event]]` în `Storage`. La crearea sau ștergerea unui eveniment, actualizăm și acest index. Astfel, interogarea istoricului evenimentelor unui utilizator se realizează în $O(M)$ (unde $M$ reprezintă evenimentele utilizatorului respectiv, $M \ll N$) în loc de o scanare liniară ineficientă a întregului istoric de evenimente globale $O(N)$.
+  3. *Simplitate*: Am respectat regula "Simplicity First" prin neimplementarea parametrilor de paginare (offset/limit) pe acest endpoint specific, deoarece aceștia nu erau menționați în cerințe.
+- **Cazuri edge pe care le-ai acoperit:**
+  1. *Timezone Naive vs. Aware*: Dacă parametrul `since` este naive (nu conține offset), i se atribuie UTC ca fus orar direct (`.replace(tzinfo=timezone.utc)`). Dacă este aware (conține offset, de ex. `+03:00`), se convertește la UTC folosind `.astimezone(timezone.utc)`. Această standardizare previne excepțiile de tip `TypeError` la compararea datelor naive cu cele aware stocate în baza de date.
+  2. *Existența utilizatorului*: Endpoint-ul verifică existența utilizatorului prin `storage.get_user(user_id)`. Dacă acesta este `None`, ridică corect `404 User not found`.
+  3. *Soft-Deleted*: Filtrează și exclude toate evenimentele care au fost șterse logic (`deleted_at is not None`).
+- **Teste adăugate:**
+  1. `test_get_user_events_no_since`: Verifică returnarea istoricului de evenimente ale utilizatorului țintă atunci când query parametrul `since` lipsește, asigurând că evenimentele altor utilizatori sunt izolate corect.
+  2. `test_get_user_events_user_missing`: Verifică returnarea corectă a statusului `404` când utilizatorul interogat nu există în sistem.
+  3. `test_get_user_events_excludes_soft_deleted`: Verifică dacă evenimentele șterse logic ale utilizatorului sunt excluse din rezultatul returnat.
+  4. `test_get_user_events_with_since`: Verifică comportamentul filtrării cronologice utilizând parametrul `since` sub diverse formate de intrare (timezone-aware UTC, timezone-aware cu offset local +03:00 și naive datetime), folosind mock-uri manuale de timestamp-uri în storage pentru a asigura determinismul testului.
+
+---
+
+## 3. Folosirea AI-ului
+
+Fii cinstit. Nu pierzi puncte dacă spui adevărul, dimpotrivă.
+
+- **Ce ai folosit:** (ChatGPT / Cursor / Copilot / altele)
+- **Prompturi reprezentative folosite:** (scrie prompturile pe care le consideri relevante + context scurt: la ce te-au ajutat)
+- **Unde te-a ajutat cel mai mult:**
+- **Unde te-a încurcat sau ți-a dat un răspuns greșit:** (foarte interesant pentru noi!)
+- **Cum ai verificat ce-a generat:**
+- **Anexă opțională — export chat:** (dacă vrei, poți adăuga un export de chat relevant)
+
+---
+
+## 4. Ce-ai face cu mai mult timp
+
+În acest moment, cele 3 bug-uri au fost rezolvate folosind implementări simple care trec suita de teste. Dacă aș avea mai mult timp pentru producție, aș aborda următoarele optimizări și compromisuri arhitecturale majore:
+
+1. **Garanția Thread-Safety în memorie**: Deoarece FastAPI rulează request-urile concurent în threadpool-uri, clasa `Storage` ar trebui securizată cu un lock (`threading.Lock`) pentru a preveni race conditions la incrementarea ID-urilor sau la scrierea/modificarea dicționarelor.
+2. **Imutabilitatea datelor în Storage**: Aș seta modelele Pydantic ca imobile (`frozen=True` sau `allow_mutation=False`) și aș returna doar copii (`.model_copy()`) din `Storage`. Modificarea obiectelor în memorie expune baza de date la coruperi de stare din partea API-ului.
+3. **Indexarea activă și optimizarea paginării**: În loc de a crea o listă nouă de evenimente și a o filtra complet la fiecare listare (O(N) ca timp și spațiu), aș menține un index separat pentru evenimentele active (`self._active_events`) și aș folosi generatori leneși (`itertools.islice`) pentru a reduce complexitatea la O(offset + limit) în timp și O(limit) în spațiu.
+4. **Prevenirea condițiilor de cursă (TOCTOU)**: Validarea existenței utilizatorului la crearea unui eveniment ar fi mutată în întregime în interiorul tranzacției din storage, eliminând riscul ca utilizatorul să fie șters între momentul verificării în API și cel al scrierii efective.
+5. **Separarea DTO-urilor**: Aș introduce scheme separate pentru expunerea publică (e.g. `EventResponse`), ascunzând câmpurile interne de stocare (cum ar fi `deleted_at: null` sau `deleted_at: datetime`).
+
+---
+
+## 5. Întrebări / observații
+
+(Orice nu a fost clar, orice ai vrea să discuți cu noi.)
