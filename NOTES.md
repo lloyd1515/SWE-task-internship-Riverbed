@@ -45,12 +45,21 @@ Pentru fiecare bug, scrie 2-3 propoziții:
 
 Fii cinstit. Nu pierzi puncte dacă spui adevărul, dimpotrivă.
 
-- **Ce ai folosit:** (ChatGPT / Cursor / Copilot / altele)
-- **Prompturi reprezentative folosite:** (scrie prompturile pe care le consideri relevante + context scurt: la ce te-au ajutat)
+- **Ce ai folosit:** Antigravity CLI Gemini 3.5 Flash.
+- **Prompturi reprezentative folosite:**
+  1. *„Avand in vedere ultimele analize, fa update in canvas si in todo.”* — cerut asistentului pentru a introduce notele de arhitectură SOLID și performanță în planul vizual (Obsidian Canvas) și lista de sarcini (Todo).
+  2. *„bun. vreau sa faci web search la metode de a da commit. zi-mi ce ai gasit, si dupa vreau sa gasim o varianta sa dam commit intr-un mod mai elegant.”* — folosit pentru a cerceta bune practici în Git commit messages (Conventional Commits, Commitizen) și pentru a seta nativ un `.gitmessage` template local.
+  3. *„spawneaza un subagent care sa critice partea cu implementul de endpoint si sa faca o comparate cu ce ni s-a cerut in @[README.md]. vreau sa fie strict legata de taskul cu endpointul si de partea de testare, sa avem si niste teste care acopera monkey mode. atat.”* — pentru a crea și porni un subagent critic (`adversarial_tester`) care să inspecteze calitatea și să implementeze teste fuzzing în tests/test_app.py.
 - **Unde te-a ajutat cel mai mult:**
-- **Unde te-a încurcat sau ți-a dat un răspuns greșit:** (foarte interesant pentru noi!)
+  1. *Actualizarea fișierelor Obsidian*: Editarea directă a fișierului Canvas (format JSON cu coordonate spațiale) a fost făcută precis și corect de către agent, scutindu-mă de editarea manuală complicată a schemelor JSON.
+  2. *Automatizarea testelor în Monkey Mode*: Subagentul a creat o suită de 8 teste unitare excepționale pentru inputuri ciudate (SQL injections, overflow, floats, emojis, naive/aware timezones invalide).
+  3. *Git Workflow elegant*: A cercetat rapid bunele practici și a configurat automat fișierul `.gitmessage` local.
+- **Unde te-a încurcat sau ți-a dat un răspuns greșit:**
+  1. *Eroare de encoding Windows*: La extragerea logurilor în terminal din Powershell, scriptul Python inițial s-a blocat cu `UnicodeEncodeError` deoarece pe Windows terminalul folosește cp1252 implicit și nu a putut encoda caracterele românești cu diacritice (ex. „ș”). A trebuit corectat prin scrierea unui script separat care forțează UTF-8.
+  2. *Supoziția eronată de validare a datei*: Subagentul a presupus inițial că data `2026-06-15 12:00:00` (separată prin spațiu) va eșua cu `422` în FastAPI. În realitate, parserul Pydantic este mai flexibil și a acceptat-o cu status `200`. Subagentul a trebuit să își modifice testele automate pentru a folosi date cu adevărat invalide în Pydantic (ex. ore/minute invalide).
 - **Cum ai verificat ce-a generat:**
-- **Anexă opțională — export chat:** (dacă vrei, poți adăuga un export de chat relevant)
+  1. Am rulat manual suita de teste folosind `python -m pytest -v` după fiecare modificare. (agentul a rulat, eu doar am verificat vizual)
+  2. Am verificat diferențele în fișiere prin `git diff` înainte de a comite modificările.(si am procesat schimbarile inainte de a da acceptul)
 
 ---
 
