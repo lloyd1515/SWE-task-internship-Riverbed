@@ -54,6 +54,8 @@ Fii cinstit. Nu pierzi puncte dacă spui adevărul, dimpotrivă.
   1. *Actualizarea fișierelor Obsidian*: Editarea directă a fișierului Canvas (format JSON cu coordonate spațiale) a fost făcută precis și corect de către agent, scutindu-mă de editarea manuală complicată a schemelor JSON.
   2. *Automatizarea testelor în Monkey Mode*: Subagentul a creat o suită de 8 teste unitare excepționale pentru inputuri ciudate (SQL injections, overflow, floats, emojis, naive/aware timezones invalide).
   3. *Git Workflow elegant*: A cercetat rapid bunele practici și a configurat automat fișierul `.gitmessage` local.
+  4. *Intelegerea arhitecturii*: Agentul a inteles rapid relatiile dintre executii, clusteri si procese din schema generata de GitNexus.
+  
 - **Unde te-a încurcat sau ți-a dat un răspuns greșit:**
   1. *Eroare de encoding Windows*: La extragerea logurilor în terminal din Powershell, scriptul Python inițial s-a blocat cu `UnicodeEncodeError` deoarece pe Windows terminalul folosește cp1252 implicit și nu a putut encoda caracterele românești cu diacritice (ex. „ș”). A trebuit corectat prin scrierea unui script separat care forțează UTF-8.
   2. *Supoziția eronată de validare a datei*: Subagentul a presupus inițial că data `2026-06-15 12:00:00` (separată prin spațiu) va eșua cu `422` în FastAPI. În realitate, parserul Pydantic este mai flexibil și a acceptat-o cu status `200`. Subagentul a trebuit să își modifice testele automate pentru a folosi date cu adevărat invalide în Pydantic (ex. ore/minute invalide).

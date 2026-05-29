@@ -10,3 +10,7 @@ venv/
 .vscode/
 .antigravitycli/
 .omc/
+.claude/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
