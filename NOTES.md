@@ -75,8 +75,28 @@ Fii cinstit. Nu pierzi puncte dacă spui adevărul, dimpotrivă.
 4. **Prevenirea condițiilor de cursă (TOCTOU)**: Validarea existenței utilizatorului la crearea unui eveniment ar fi mutată în întregime în interiorul tranzacției din storage, eliminând riscul ca utilizatorul să fie șters între momentul verificării în API și cel al scrierii efective.
 5. **Separarea DTO-urilor**: Aș introduce scheme separate pentru expunerea publică (e.g. `EventResponse`), ascunzând câmpurile interne de stocare (cum ar fi `deleted_at: null` sau `deleted_at: datetime`).
 
+## 5. Cum se rulează proiectul și testele
+
+Instrucțiunile complete de instalare sunt în [README.md](README.md), dar pe scurt, totul poate fi pornit prin următoarele comenzi:
+
+1. **Instalarea mediului și a dependențelor** (în mod editabil, inclusiv uneltele de testare):
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
+2. **Pornirea serverului API local** (portul implicit 8000):
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+   *Interfața interactivă Swagger (OpenAPI) este accesibilă la: http://localhost:8000/docs.*
+
+3. **Rularea întregii suite de teste** (toate cele 24 de teste sunt verzi):
+   ```bash
+   pytest -v
+   ```
+
 ---
 
-## 5. Întrebări / observații
+## 6. Întrebări / observații
 
-(Orice nu a fost clar, orice ai vrea să discuți cu noi.)
+Proiectul a fost foarte bine structurat și curat, oferind o bază excelentă pentru a simula un scenariu real de bug fixing și adăugare de feature-uri cu indexare optimizată in-memory. Nu au existat neclarități majore, iar rularea locală a fost fluidă și lipsită de probleme.
